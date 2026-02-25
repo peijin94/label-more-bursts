@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Batch-generate 0image / ivstack3 / ivmsi3 training sets from FITS files."""
+"""Batch-generate 0image / ivstack3 / ivmsi4 training sets from FITS files."""
 
 from __future__ import annotations
 
@@ -49,23 +49,34 @@ def compute_window_starts(
     return starts
 
 
-def save_ivmsi3(i_arr: np.ndarray, v_arr: np.ndarray, output_npz: Path) -> None:
-    """Save legacy ivmsi3 npz as (3, 300, 800): linear-I, log-I, V/I."""
+def save_ivmsi4(i_arr: np.ndarray, v_arr: np.ndarray, output_npz: Path) -> None:
+    """Save ivmsi4 npz as (4, 300, 800): linear-I, log-I, log-I-p99.5, V/I."""
     ch0 = normalize_linear(i_arr, vmin=0.0, vmax=200.0)
     ch1 = normalize_log(i_arr, vmin=0.5, vmax=200.0)
-    ch2 = np.divide(
+    i_pos = i_arr[np.isfinite(i_arr) & (i_arr > 0)]
+    i_p995 = float(np.nanpercentile(i_pos, 99.5)) if i_pos.size else 200.0
+    i_p995 = max(i_p995, 0.55)
+    ch2 = normalize_log(i_arr, vmin=0.5, vmax=i_p995)
+    ch3 = np.divide(
         np.asarray(v_arr, dtype=np.float32),
         np.asarray(i_arr, dtype=np.float32),
         out=np.zeros_like(v_arr, dtype=np.float32),
         where=np.isfinite(i_arr) & (np.abs(i_arr) > 1e-6),
     )
-    ch2 = np.clip(ch2, -0.4, 0.4)
+    ch3 = np.clip(ch3, -0.4, 0.4)
 
-    msi = np.stack([resize_2d(ch0), resize_2d(ch1), resize_2d(ch2)], axis=0).astype(np.float32)
+    msi = np.stack([resize_2d(ch0), resize_2d(ch1), resize_2d(ch2), resize_2d(ch3)], axis=0).astype(np.float32)
     np.savez_compressed(
         output_npz,
         msi=msi,
-        channel_order=np.array(["i_linear_0_200", "i_log_0p5_200", "v_over_i_clipped_pm0p4"]),
+        channel_order=np.array(
+            [
+                "i_linear_0_200",
+                "i_log_0p5_200",
+                "i_log_0p5_p99p5",
+                "v_over_i_clipped_pm0p4",
+            ]
+        ),
     )
 
 
@@ -90,10 +101,10 @@ def main() -> None:
     out_root = Path(args.output_root)
     out_0image = out_root / "0image"
     out_ivstack3 = out_root / "ivstack3"
-    out_ivmsi3 = out_root / "ivmsi3"
+    out_ivmsi4 = out_root / "ivmsi4"
     out_0image.mkdir(parents=True, exist_ok=True)
     out_ivstack3.mkdir(parents=True, exist_ok=True)
-    out_ivmsi3.mkdir(parents=True, exist_ok=True)
+    out_ivmsi4.mkdir(parents=True, exist_ok=True)
 
     fits_files = sorted(fits_dir.glob(args.pattern))
     if args.max_files > 0:
@@ -156,17 +167,17 @@ def main() -> None:
                     duration_label = int(round(args.duration_s))
                     fn_0 = build_label_filename(dt_utc, duration_label, freq_min, freq_max, "0image", "png")
                     fn_s = build_label_filename(dt_utc, duration_label, freq_min, freq_max, "ivstack3", "png")
-                    fn_m = build_label_filename(dt_utc, duration_label, freq_min, freq_max, "ivmsi3", "npz")
+                    fn_m = build_label_filename(dt_utc, duration_label, freq_min, freq_max, "ivmsi4", "npz")
 
                     p0 = out_0image / fn_0
                     ps = out_ivstack3 / fn_s
-                    pm = out_ivmsi3 / fn_m
+                    pm = out_ivmsi4 / fn_m
                     if (not args.overwrite) and p0.exists() and ps.exists() and pm.exists():
                         continue
 
                     save_0image(i_arr, p0, max_percentile=args.max_percentile)
                     save_ivstack3(i_arr, v_arr, f_arr, t_arr, ps, max_percentile=args.max_percentile)
-                    save_ivmsi3(i_arr, v_arr, pm)
+                    save_ivmsi4(i_arr, v_arr, pm)
                     frames_written += 1
 
                 total_frames += frames_written
