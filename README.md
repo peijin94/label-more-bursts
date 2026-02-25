@@ -25,6 +25,7 @@ Plain image (`png`, `jpg`, etc.).
 - Spectrum image only
 - Frequency: low to high from bottom to top
 - Time: left to right
+- Output size: `800x300` (W x H)
 
 ### 2.1) `ivstack2`
 
@@ -39,15 +40,18 @@ Stacked image of polarization I and V.
 
 - Panel 1: log scale `0.5 to maxpercentile`
 - Panel 2: log scale `0.5 to 200`
-- Panel 3: pol-V
+- Panel 3: `V/I` (pol ratio), display range `-0.4 to 0.4`
+- Output size: `800x900` (W x H), no captions/colorbars
 
-### 3) `ivmsi3`
+### 3) `ivmsi4`
 
-Multispectral training data (`npz`), 3 channels:
+Multispectral training data (`npz`), 4 channels.
 
-- Channel 1: linear scaling `0-200 sfu`, normalized to `[0, 1]`
-- Channel 2: log scaling `0.5-200 sfu`, normalized to `[0, 1]`
-- Channel 3: pol-V
+- `msi` array shape: `(4, 300, 800)` = `(NCH, H, W)`
+- Channel 0: linear scaling `0-200 sfu`, normalized to `[0, 1]`
+- Channel 1: log scaling `0.5-200 sfu`, normalized to `[0, 1]`
+- Channel 2: log scaling `0.5-p99.5(I)`, normalized to `[0, 1]`
+- Channel 3: `V/I` polarization ratio, clipped to `[-0.4, 0.4]`
 
 ## YOLO Labeling Class Mapping
 

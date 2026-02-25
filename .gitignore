@@ -71,3 +71,8 @@ Thumbs.db
 
 # Project outputs
 outtmp/
+
+# Global data/artifact files
+*.fits
+*.npz
+*.png
